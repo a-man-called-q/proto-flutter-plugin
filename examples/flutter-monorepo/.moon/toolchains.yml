@@ -1,0 +1,4 @@
+flutter:
+  plugin: "file://../../../target/wasm32-wasip1/debug/flutter_toolchain.wasm"
+  versionFromPrototools: true
+  inferTasks: true

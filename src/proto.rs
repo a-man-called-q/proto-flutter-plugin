@@ -3,13 +3,9 @@ use std::collections::HashMap;
 use extism_pdk::*;
 use proto_pdk::*;
 use schematic::SchemaBuilder;
+use serde::Deserialize;
 
-use crate::{Fvmrc, FlutterDist, FlutterPluginConfig, PubspecYaml};
-
-#[host_fn]
-extern "ExtismHost" {
-    fn exec_command(input: Json<ExecCommandInput>) -> Json<ExecCommandInput>;
-}
+use crate::{FlutterDist, FlutterDistVersion, FlutterPluginConfig, Fvmrc, PubspecYaml};
 
 static NAME: &str = "Flutter";
 
@@ -30,55 +26,10 @@ pub fn register_tool(Json(_): Json<RegisterToolInput>) -> FnResult<Json<Register
 #[plugin_fn]
 pub fn load_versions(Json(_): Json<LoadVersionsInput>) -> FnResult<Json<LoadVersionsOutput>> {
     let env = get_host_environment()?;
-
+    ensure_supported_host(&env)?;
     let response = fetch_dist(&env)?;
-    let mut output = LoadVersionsOutput::default();
 
-    for item in response.releases.iter() {
-        if let Ok(version_spec) = VersionSpec::parse(&item.version) {
-            let version_as_option = version_spec.as_version();
-
-            match version_as_option {
-                Some(version) => {
-                    if version.major == 0
-                        || (item.channel.eq("beta")
-                            && (version.pre.is_empty() && version.build.is_empty()))
-                        || (item.channel.eq("stable") && !version.build.is_empty())
-                        || check_version_for_os_and_arch(&env, &version_spec).is_err()
-                        || item.channel.eq("dev")
-                        || output.versions.contains(&version_spec)
-                    {
-                        continue;
-                    }
-                }
-                _ => {
-                    continue;
-                }
-            }
-
-            let unresolved_version_spec = version_spec.to_unresolved_spec();
-
-            if response.latest.stable == item.hash {
-                output.latest = Some(unresolved_version_spec.clone());
-                output
-                    .aliases
-                    .insert("latest".into(), unresolved_version_spec.clone());
-                output
-                    .aliases
-                    .insert("stable".into(), unresolved_version_spec.clone());
-            }
-
-            if response.latest.beta == item.hash {
-                output
-                    .aliases
-                    .insert("beta".into(), unresolved_version_spec.clone());
-            }
-
-            output.versions.push(version_spec.clone());
-        }
-    }
-
-    Ok(Json(output))
+    Ok(Json(build_versions_output(&env, &response)?))
 }
 
 #[plugin_fn]
@@ -88,7 +39,7 @@ pub fn download_prebuilt(
     let env = get_host_environment()?;
     let version_spec = input.context.version.as_ref();
 
-    check_version_for_os_and_arch(&env, version_spec)?;
+    ensure_supported_host(&env)?;
 
     if version_spec.is_canary() {
         return Err(plugin_err!(PluginError::Message(format!(
@@ -97,63 +48,13 @@ pub fn download_prebuilt(
     }
 
     let base_url = get_tool_config::<FlutterPluginConfig>()?.base_url;
-    let os = get_os_as_str(&env);
-    let version = version_spec.as_version().unwrap();
-    let version_as_string = version.to_string();
-    let channel = if !version.pre.is_empty() || !version.build.is_empty() {
-        "beta"
-    } else {
-        "stable"
-    };
-    // Flutter archives before 1.17.0 (stable) / 1.17.0-dev.3.1 (beta) used a "v" prefix
-    // in the filename (e.g. flutter_macos_v1.2.1-stable.zip). Starting from 1.17.0 the
-    // prefix was dropped. See https://docs.flutter.dev/release/archive
-    let version_v_prefix = if (channel == "stable"
-        && version_spec.lt(VersionSpec::parse("1.17.0").unwrap().as_ref()))
-        || (channel == "beta"
-            && version_spec.lt(VersionSpec::parse("1.17.0-dev.3.1").unwrap().as_ref()))
-    {
-        "v"
-    } else {
-        ""
-    };
-    let arch = if env.arch == HostArch::Arm64 {
-        "arm64_"
-    } else {
-        ""
-    };
-
     let response = fetch_dist(&env)?;
-    let checksum = response.releases.iter().find_map(|item| {
-        if item.version == format!("{}{}", version_v_prefix, version_as_string)
-            && item.channel == channel
-        {
-            if arch == "arm64_" {
-                if item.arch == Some("arm64".into()) {
-                    return Some(item.sha256.clone());
-                } else {
-                    return None;
-                }
-            }
-
-            Some(item.sha256.clone())
-        } else {
-            None
-        }
-    });
-
-    let ext = if env.os == HostOS::Linux {
-        "tar.xz"
-    } else {
-        "zip"
-    };
-
-    let download_url =
-        format!("{base_url}/{channel}/{os}/flutter_{os}_{arch}{version_v_prefix}{version_as_string}-{channel}.{ext}");
+    let release = select_release(&env, &response, version_spec)?;
+    let download_url = build_download_url(&base_url, release);
 
     Ok(Json(DownloadPrebuiltOutput {
         download_url,
-        checksum,
+        checksum: Some(release.sha256.clone()),
         ..DownloadPrebuiltOutput::default()
     }))
 }
@@ -189,31 +90,21 @@ pub fn locate_executables(
 #[plugin_fn]
 pub fn detect_version_files(_: ()) -> FnResult<Json<DetectVersionOutput>> {
     Ok(Json(DetectVersionOutput {
-        files: vec![
-            ".fvmrc".into(),
-            "pubspec.yml".into(),
-            "pubspec.yaml".into(),
-        ],
+        files: vec![".fvmrc".into(), "pubspec.yml".into(), "pubspec.yaml".into()],
         ignore: vec![],
     }))
 }
 
 #[plugin_fn]
 pub fn pre_run(Json(input): Json<RunHook>) -> FnResult<Json<RunHookResult>> {
-    let result = RunHookResult::default();
-    let args = &input.passthrough_args;
+    validate_run_args(&input.passthrough_args)?;
 
-    match args[0].as_str() {
-        "channel" if args.len() == 2 => Err(plugin_err!(PluginError::Message(format!(
-            "{NAME} does not support channel switching with proto. Please use `proto install flutter beta` or check it out with git manually instead. See https://docs.flutter.dev/release/archive#main-channel"
-        )))),
-        _ => Ok(Json(result))
-    }
+    Ok(Json(RunHookResult::default()))
 }
 
 #[plugin_fn]
 pub fn parse_version_file(
-    Json(input): Json<ParseVersionFileInput>,
+    Json(input): Json<CompatibleParseVersionFileInput>,
 ) -> FnResult<Json<ParseVersionFileOutput>> {
     let mut version = None;
 
@@ -236,69 +127,150 @@ pub fn parse_version_file(
     Ok(Json(ParseVersionFileOutput { version }))
 }
 
-pub fn check_version_for_os_and_arch(
-    env: &HostEnvironment,
-    version_spec: &VersionSpec,
-) -> FnResult<()> {
-    let version = version_spec.as_version().unwrap();
+// Proto 0.47 used `ToolContext` here, while newer Proto releases use an
+// unresolved context. The plugin only needs the file name and contents, so a
+// narrow input keeps this hook compatible with both host shapes.
+#[derive(Deserialize)]
+pub struct CompatibleParseVersionFileInput {
+    pub content: String,
+    pub file: String,
+}
 
-    let unresolved_version_spec_option = match env.os {
-        HostOS::Linux => match env.arch {
-            HostArch::X64 => None::<UnresolvedVersionSpec>,
-            _ => UnresolvedVersionSpec::parse("0.0.0").ok(),
-        },
-        // Flutter added macOS ARM64 (Apple Silicon) support progressively:
-        // - Beta/pre-release builds: available from 2.12.0-4.1.pre (first M1 beta)
-        // - Stable builds: available from 3.0.0 (first stable with arm64 archives)
-        HostOS::MacOS => match env.arch {
-            HostArch::Arm64
-                if !version.pre.is_empty()
-                    && version_spec.lt(VersionSpec::Semantic(SemVer(
-                        Version::parse("2.12.0-4.1.pre").ok().unwrap(),
-                    ))
-                    .as_ref()) =>
-            {
-                UnresolvedVersionSpec::parse(">=2.12.0-4.1.pre").ok()
-            }
-            HostArch::Arm64
-                if version_spec
-                    .lt(VersionSpec::Semantic(SemVer(Version::new(3, 0, 0))).as_ref()) =>
-            {
-                UnresolvedVersionSpec::parse(">=3.0.0").ok()
-            }
-            _ => None::<UnresolvedVersionSpec>,
-        },
-        HostOS::Windows => match env.arch {
-            HostArch::X64 => None::<UnresolvedVersionSpec>,
-            _ => UnresolvedVersionSpec::parse("0.0.0").ok(),
-        },
-        _ => UnresolvedVersionSpec::parse("0.0.0").ok(),
-    };
+fn validate_run_args(args: &[String]) -> FnResult<()> {
+    if args.first().is_some_and(|arg| arg == "channel") && args.len() > 1 {
+        return Err(plugin_err!(PluginError::Message(format!(
+            "{NAME} does not support channel switching with proto. Please use `proto install flutter beta` or check it out with git manually instead. See https://docs.flutter.dev/release/archive#main-channel"
+        ))));
+    }
 
-    match unresolved_version_spec_option {
-        Some(unresolved_version_spec) => match unresolved_version_spec {
-            UnresolvedVersionSpec::Req(req) => {
-                let arch = env.arch.to_string();
+    Ok(())
+}
 
-                Err(plugin_err!(PluginError::Message(format!(
-                    "Unable to install {NAME}@{version} for the current architecture {arch} and os. Require {req}"
-                ))))
-            }
-            _ => Err(PluginError::UnsupportedOS {
-                tool: NAME.to_owned(),
-                os: env.os.to_string(),
-            }
-            .into()),
-        },
-        _ => Ok(()),
+fn ensure_supported_host(env: &HostEnvironment) -> FnResult<()> {
+    let supported = matches!(
+        (env.os, env.arch),
+        (HostOS::Linux, HostArch::X64)
+            | (HostOS::MacOS, HostArch::X64 | HostArch::Arm64)
+            | (HostOS::Windows, HostArch::X64)
+    );
+
+    if supported {
+        Ok(())
+    } else {
+        Err(PluginError::UnsupportedOS {
+            tool: NAME.to_owned(),
+            os: format!("{} ({})", env.os, env.arch),
+        }
+        .into())
     }
 }
 
-fn get_os_as_str(env: &HostEnvironment) -> String {
+fn is_release_compatible(env: &HostEnvironment, release: &FlutterDistVersion) -> bool {
+    if !matches!(release.channel.as_str(), "stable" | "beta") {
+        return false;
+    }
+
+    match env.arch {
+        HostArch::Arm64 => release.arch.as_deref() == Some("arm64"),
+        HostArch::X64 => matches!(release.arch.as_deref(), None | Some("x64")),
+        _ => false,
+    }
+}
+
+fn build_versions_output(
+    env: &HostEnvironment,
+    response: &FlutterDist,
+) -> FnResult<LoadVersionsOutput> {
+    ensure_supported_host(env)?;
+
+    let mut output = LoadVersionsOutput::default();
+
+    for release in &response.releases {
+        if !is_release_compatible(env, release) {
+            continue;
+        }
+
+        let Ok(version_spec) = VersionSpec::parse(&release.version) else {
+            continue;
+        };
+        let Some(version) = version_spec.as_version() else {
+            continue;
+        };
+
+        if version.major == 0 {
+            continue;
+        }
+
+        let unresolved = version_spec.to_unresolved_spec();
+
+        if response.latest.stable == release.hash {
+            output.latest = Some(unresolved.clone());
+            output.aliases.insert("latest".into(), unresolved.clone());
+            output.aliases.insert("stable".into(), unresolved.clone());
+        }
+
+        if response.latest.beta == release.hash {
+            output.aliases.insert("beta".into(), unresolved);
+        }
+
+        if !output.versions.contains(&version_spec) {
+            output.versions.push(version_spec);
+        }
+    }
+
+    Ok(output)
+}
+
+fn select_release<'a>(
+    env: &HostEnvironment,
+    response: &'a FlutterDist,
+    version_spec: &VersionSpec,
+) -> FnResult<&'a FlutterDistVersion> {
+    ensure_supported_host(env)?;
+
+    let requested = version_spec.as_version().ok_or_else(|| {
+        plugin_err!(PluginError::Message(format!(
+            "Unable to resolve {NAME} version `{version_spec}` to an exact release"
+        )))
+    })?;
+    let preferred_channel = if requested.pre.is_empty() {
+        "stable"
+    } else {
+        "beta"
+    };
+
+    response
+        .releases
+        .iter()
+        .filter(|release| is_release_compatible(env, release))
+        .filter(|release| {
+            VersionSpec::parse(&release.version)
+                .ok()
+                .and_then(|spec| spec.as_version().cloned())
+                .is_some_and(|version| version == *requested)
+        })
+        .min_by_key(|release| usize::from(release.channel != preferred_channel))
+        .ok_or_else(|| {
+            plugin_err!(PluginError::Message(format!(
+                "Unable to install {NAME}@{requested} for {} ({}): no compatible stable or beta archive was found",
+                env.os, env.arch
+            )))
+        })
+}
+
+fn build_download_url(base_url: &str, release: &FlutterDistVersion) -> String {
+    format!(
+        "{}/{}",
+        base_url.trim_end_matches('/'),
+        release.archive.trim_start_matches('/')
+    )
+}
+
+fn get_os_as_str(env: &HostEnvironment) -> &'static str {
     match env.os {
-        HostOS::MacOS => "macos".into(),
-        HostOS::Windows => "windows".into(),
-        _ => "linux".into(),
+        HostOS::MacOS => "macos",
+        HostOS::Windows => "windows",
+        _ => "linux",
     }
 }
 
@@ -319,4 +291,94 @@ fn fetch_dist(env: &HostEnvironment) -> AnyResult<FlutterDist> {
     let dist: FlutterDist = json::from_slice(&bytes)?;
 
     Ok(dist)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn fixture() -> FlutterDist {
+        json::from_str(include_str!("../tests/fixtures/releases_macos.json")).unwrap()
+    }
+
+    fn host(arch: HostArch) -> HostEnvironment {
+        HostEnvironment {
+            arch,
+            os: HostOS::MacOS,
+            ..HostEnvironment::default()
+        }
+    }
+
+    #[test]
+    fn accepts_empty_and_read_only_channel_args() {
+        assert!(validate_run_args(&[]).is_ok());
+        assert!(validate_run_args(&["doctor".into()]).is_ok());
+        assert!(validate_run_args(&["channel".into()]).is_ok());
+        assert!(validate_run_args(&["channel".into(), "stable".into()]).is_err());
+    }
+
+    #[test]
+    fn builds_compatible_versions_and_aliases() {
+        let output = build_versions_output(&host(HostArch::Arm64), &fixture()).unwrap();
+
+        assert_eq!(
+            output.latest,
+            Some(UnresolvedVersionSpec::parse("3.44.8").unwrap())
+        );
+        assert_eq!(
+            output.aliases.get("beta"),
+            Some(&UnresolvedVersionSpec::parse("3.47.0-0.2.pre").unwrap())
+        );
+        assert!(output
+            .versions
+            .contains(VersionSpec::parse("2.12.0-4.1.pre").unwrap().as_ref()));
+        assert!(!output
+            .versions
+            .contains(VersionSpec::parse("3.48.0-0.1.pre").unwrap().as_ref()));
+        assert!(!output
+            .versions
+            .contains(VersionSpec::parse("0.11.13").unwrap().as_ref()));
+    }
+
+    #[test]
+    fn selects_archive_metadata_and_preferred_channel() {
+        let response = fixture();
+        let arm_host = host(HostArch::Arm64);
+        let stable =
+            select_release(&arm_host, &response, &VersionSpec::parse("3.44.8").unwrap()).unwrap();
+
+        assert_eq!(stable.archive, "stable/macos/custom-stable-package.zip");
+        assert_eq!(stable.sha256, "stable-arm64-sha");
+        assert_eq!(
+            build_download_url("https://example.test/releases/", stable),
+            "https://example.test/releases/stable/macos/custom-stable-package.zip"
+        );
+
+        let x64_host = host(HostArch::X64);
+        let duplicate =
+            select_release(&x64_host, &response, &VersionSpec::parse("2.0.0").unwrap()).unwrap();
+
+        assert_eq!(duplicate.channel, "stable");
+        assert_eq!(duplicate.sha256, "duplicate-stable-sha");
+    }
+
+    #[test]
+    fn reports_missing_release_and_unsupported_host() {
+        let response = fixture();
+
+        assert!(select_release(
+            &host(HostArch::Arm64),
+            &response,
+            &VersionSpec::parse("1.0.0").unwrap()
+        )
+        .is_err());
+
+        let windows_x86 = HostEnvironment {
+            arch: HostArch::X86,
+            os: HostOS::Windows,
+            ..HostEnvironment::default()
+        };
+
+        assert!(ensure_supported_host(&windows_x86).is_err());
+    }
 }

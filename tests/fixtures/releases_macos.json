@@ -1,0 +1,70 @@
+{
+  "current_release": {
+    "stable": "stable-current",
+    "beta": "beta-current"
+  },
+  "releases": [
+    {
+      "archive": "stable/macos/custom-stable-package.zip",
+      "hash": "stable-current",
+      "channel": "stable",
+      "version": "3.44.8",
+      "sha256": "stable-arm64-sha",
+      "dart_sdk_arch": "arm64"
+    },
+    {
+      "archive": "stable/macos/custom-stable-x64-package.zip",
+      "hash": "stable-current",
+      "channel": "stable",
+      "version": "3.44.8",
+      "sha256": "stable-x64-sha",
+      "dart_sdk_arch": "x64"
+    },
+    {
+      "archive": "beta/macos/flutter_macos_arm64_3.47.0-0.2.pre-beta.zip",
+      "hash": "beta-current",
+      "channel": "beta",
+      "version": "3.47.0-0.2.pre",
+      "sha256": "beta-current-sha",
+      "dart_sdk_arch": "arm64"
+    },
+    {
+      "archive": "beta/macos/flutter_macos_arm64_2.12.0-4.1.pre-beta.zip",
+      "hash": "beta-old",
+      "channel": "beta",
+      "version": "2.12.0-4.1.pre",
+      "sha256": "beta-old-sha",
+      "dart_sdk_arch": "arm64"
+    },
+    {
+      "archive": "stable/macos/flutter_macos_2.0.0-stable.zip",
+      "hash": "duplicate-stable",
+      "channel": "stable",
+      "version": "2.0.0",
+      "sha256": "duplicate-stable-sha"
+    },
+    {
+      "archive": "beta/macos/flutter_macos_2.0.0-beta.zip",
+      "hash": "duplicate-beta",
+      "channel": "beta",
+      "version": "2.0.0",
+      "sha256": "duplicate-beta-sha"
+    },
+    {
+      "archive": "dev/macos/ignored-dev.zip",
+      "hash": "dev-release",
+      "channel": "dev",
+      "version": "3.48.0-0.1.pre",
+      "sha256": "dev-sha",
+      "dart_sdk_arch": "arm64"
+    },
+    {
+      "archive": "stable/macos/ignored-zero.zip",
+      "hash": "zero-release",
+      "channel": "stable",
+      "version": "0.11.13",
+      "sha256": "zero-sha",
+      "dart_sdk_arch": "arm64"
+    }
+  ]
+}

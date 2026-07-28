@@ -1,0 +1,49 @@
+language: "rust"
+
+tasks:
+  format:
+    command: "cargo fmt --all -- --check"
+    inputs:
+      - "src/**/*.rs"
+      - "crates/**/*.rs"
+      - "tests/**/*.rs"
+
+  lint:
+    command: "cargo clippy --workspace --all-targets -- -D warnings"
+    inputs:
+      - "src/**/*.rs"
+      - "crates/**/*.rs"
+      - "tests/**/*.rs"
+      - "Cargo.toml"
+      - "Cargo.lock"
+
+  build:
+    command: "cargo build --workspace --target wasm32-wasip1"
+    inputs:
+      - "src/**/*.rs"
+      - "crates/**/*.rs"
+      - "Cargo.toml"
+      - "crates/*/Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+    outputs:
+      - "target/wasm32-wasip1/debug/flutter_tool.wasm"
+      - "target/wasm32-wasip1/debug/flutter_toolchain.wasm"
+
+  test:
+    command: "cargo test --workspace --all-targets"
+    deps:
+      - "build"
+    inputs:
+      - "src/**/*.rs"
+      - "crates/**/*.rs"
+      - "tests/**/*"
+      - "Cargo.toml"
+      - "crates/*/Cargo.toml"
+      - "Cargo.lock"
+
+  ci:
+    deps:
+      - "format"
+      - "lint"
+      - "test"

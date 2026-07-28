@@ -1,0 +1,9 @@
+{
+  "name": "Flutter monorepo example",
+  "short_name": "Monorepo",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#6750A4",
+  "description": "Flutter monorepo example powered by Proto and Moon"
+}

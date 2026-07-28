@@ -3,8 +3,10 @@ use proto_pdk_test_utils::*;
 mod flutter_tool {
     use super::*;
 
+    #[cfg(feature = "live-tests")]
     generate_download_install_tests!("flutter-test", "3.29.0");
 
+    #[cfg(feature = "live-tests")]
     #[tokio::test(flavor = "multi_thread")]
     async fn supports_macos_arm64() {
         let sandbox = create_empty_proto_sandbox();
@@ -34,6 +36,7 @@ mod flutter_tool {
         );
     }
 
+    #[cfg(feature = "live-tests")]
     #[tokio::test(flavor = "multi_thread")]
     async fn supports_linux_x64() {
         let sandbox = create_empty_proto_sandbox();
@@ -63,6 +66,7 @@ mod flutter_tool {
         );
     }
 
+    #[cfg(feature = "live-tests")]
     #[tokio::test(flavor = "multi_thread")]
     async fn supports_windows_x64() {
         let sandbox = create_empty_proto_sandbox();
@@ -92,6 +96,7 @@ mod flutter_tool {
         );
     }
 
+    #[cfg(feature = "live-tests")]
     #[tokio::test(flavor = "multi_thread")]
     async fn supports_versions_with_v_prefix_stable() {
         let sandbox = create_empty_proto_sandbox();
@@ -121,6 +126,7 @@ mod flutter_tool {
         );
     }
 
+    #[cfg(feature = "live-tests")]
     #[tokio::test(flavor = "multi_thread")]
     async fn supports_versions_with_v_prefix_beta() {
         let sandbox = create_empty_proto_sandbox();
@@ -162,10 +168,11 @@ mod flutter_tool {
         assert_eq!(
             plugin
                 .locate_executables(LocateExecutablesInput {
-                    context: ToolContext {
+                    context: PluginContext {
                         version: VersionSpec::parse("3.29.0").unwrap(),
                         ..Default::default()
                     },
+                    ..Default::default()
                 })
                 .await
                 .exes
@@ -188,10 +195,11 @@ mod flutter_tool {
         assert_eq!(
             plugin
                 .locate_executables(LocateExecutablesInput {
-                    context: ToolContext {
+                    context: PluginContext {
                         version: VersionSpec::parse("3.29.0").unwrap(),
                         ..Default::default()
                     },
+                    ..Default::default()
                 })
                 .await
                 .exes

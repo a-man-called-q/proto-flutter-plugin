@@ -1,0 +1,11 @@
+name: example_core
+description: Shared pure Dart logic for the Flutter monorepo example.
+version: 0.1.0
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.12.0
+
+dev_dependencies:
+  test: ^1.26.0

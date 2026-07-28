@@ -7,6 +7,7 @@ on:
   push:
     tags:
       - "v[0-9]+*"
+      - "flutter_toolchain-v[0-9]+*"
 
 jobs:
   build:
@@ -15,10 +16,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+      - uses: moonrepo/setup-toolchain@v0
         with:
-          targets: wasm32-wasip1
+          auto-install: true
+
+      - name: Validate
+        run: moon run :ci
+
+      - name: Validate native Flutter example
+        run: |
+          cargo build --workspace --target wasm32-wasip1
+          cd examples/flutter-monorepo
+          proto install flutter
+          moon query projects
+          moon query tasks
+          moon run :analyze :test
 
       - name: Install wabt
         run: sudo apt-get update && sudo apt-get install -y wabt
@@ -29,12 +41,22 @@ jobs:
           echo "/tmp/binaryen-version_121/bin" >> "$GITHUB_PATH"
 
       - name: Build WASM plugin (release)
-        run: cargo build --target wasm32-wasip1 --release
+        run: |
+          if [[ "$GITHUB_REF_NAME" == flutter_toolchain-v* ]]; then
+            cargo build --package flutter_toolchain --target wasm32-wasip1 --release
+          else
+            cargo build --package flutter_tool --target wasm32-wasip1 --release
+          fi
 
       - name: Optimize and strip
         run: |
-          input="target/wasm32-wasip1/release/flutter_tool.wasm"
-          output="builds/flutter_tool.wasm"
+          if [[ "$GITHUB_REF_NAME" == flutter_toolchain-v* ]]; then
+            artifact="flutter_toolchain"
+          else
+            artifact="flutter_tool"
+          fi
+          input="target/wasm32-wasip1/release/$artifact.wasm"
+          output="builds/$artifact.wasm"
           mkdir -p builds
           wasm-opt -Os --enable-bulk-memory "$input" --output "$output"
           wasm-strip "$output"

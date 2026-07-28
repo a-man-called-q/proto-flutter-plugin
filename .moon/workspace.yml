@@ -1,0 +1,6 @@
+projects:
+  - "."
+
+vcs:
+  client: "git"
+  defaultBranch: "main"

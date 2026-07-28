@@ -1,0 +1,6 @@
+name: example_workspace
+environment:
+  sdk: ^3.12.0
+workspace:
+  - apps/app
+  - packages/core

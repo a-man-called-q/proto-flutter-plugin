@@ -1,0 +1,6 @@
+proto = "0.59.0"
+moon = "2.4.5"
+flutter = "3.44.8"
+
+[plugins.tools]
+flutter = "file://../../target/wasm32-wasip1/debug/flutter_tool.wasm"

@@ -1,0 +1,11 @@
+/.dart_tool/
+/.idea/
+/.moon/cache/
+/.moon/docker/
+/.packages
+**/build/
+
+# Pub workspace members use the root lockfile and package config.
+**/pubspec.lock
+**/.dart_tool/
+!/pubspec.lock

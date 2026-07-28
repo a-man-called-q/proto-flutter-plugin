@@ -1,3 +1,31 @@
+## 0.4.0
+
+#### Features
+
+- Added a native Moon Flutter toolchain with Proto-backed Flutter and Dart executables.
+- Added Pub workspace discovery, project aliases, local dependency graph inference, and dependency installation.
+- Added inferred `analyze`, `test`, and interactive Flutter app `run` tasks.
+
+#### Improvements
+
+- Converted the repository to a two-artifact Cargo workspace.
+- Migrated the Flutter monorepo example to native Moon toolchain integration.
+- Added separate release tags and checksums for the Proto and Moon WASM artifacts.
+
+## 0.3.2
+
+#### Fixes
+
+- Prevented the pre-run hook from trapping when Flutter is invoked without arguments.
+- Resolved downloads from Flutter's official archive metadata instead of reconstructing URLs.
+- Fixed Apple Silicon beta availability by using architecture metadata as the source of truth.
+
+#### Improvements
+
+- Added deterministic resolver tests, Moonrepo development tasks, and pull request CI.
+- Added documented Moonrepo task integration for Flutter consumers.
+- Added a CI-verified Flutter monorepo example using Pub workspaces and Moon.
+
 ## 0.3.1
 
 #### Fixes
