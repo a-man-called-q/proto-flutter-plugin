@@ -18,7 +18,13 @@ jobs:
 
       - uses: moonrepo/setup-toolchain@v0
         with:
-          auto-install: true
+          auto-install: false
+
+      - name: Install Moon
+        run: proto install moon
+
+      - name: Install Rust
+        run: proto install rust
 
       - name: Validate
         run: moon run :ci
