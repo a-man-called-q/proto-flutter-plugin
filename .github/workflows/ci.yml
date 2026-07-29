@@ -73,7 +73,7 @@ jobs:
         run: moon run :analyze :test
 
   moon-forward-compat:
-    name: Moon latest compatibility
+    name: Moon 2.4.6 compatibility
     continue-on-error: true
     runs-on: ubuntu-latest
     steps:
@@ -96,5 +96,8 @@ jobs:
 
       - run: cargo build --workspace --target wasm32-wasip1
 
-      - name: Validate latest stable Moon
-        run: proto run moon latest -- run :ci
+      - name: Install Moon 2.4.6
+        run: proto install moon 2.4.6
+
+      - name: Validate Moon 2.4.6
+        run: proto run moon 2.4.6 -- run :ci
