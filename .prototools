@@ -3,4 +3,4 @@ moon = "2.4.5"
 rust = "1.97.1"
 
 [plugins.tools]
-flutter = "file://./target/wasm32-wasip1/debug/flutter_tool.wasm"
+flutter = "github://KonstantinKai/proto-flutter-plugin"

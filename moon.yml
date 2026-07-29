@@ -9,7 +9,7 @@ tasks:
       - "tests/**/*.rs"
 
   lint:
-    command: "cargo clippy --workspace --all-targets -- -D warnings"
+    command: "cargo clippy --locked --workspace --all-targets -- -D warnings"
     inputs:
       - "src/**/*.rs"
       - "crates/**/*.rs"
@@ -18,7 +18,7 @@ tasks:
       - "Cargo.lock"
 
   build:
-    command: "cargo build --workspace --target wasm32-wasip1"
+    command: "cargo build --locked --workspace --target wasm32-wasip1"
     inputs:
       - "src/**/*.rs"
       - "crates/**/*.rs"
@@ -31,7 +31,7 @@ tasks:
       - "target/wasm32-wasip1/debug/flutter_toolchain.wasm"
 
   test:
-    command: "cargo test --workspace --all-targets"
+    command: "cargo test --locked --workspace --all-targets"
     deps:
       - "build"
     inputs:

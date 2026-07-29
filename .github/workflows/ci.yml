@@ -11,12 +11,12 @@ jobs:
     name: Moon CI
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
           filter: blob:none
 
-      - uses: moonrepo/setup-toolchain@v0
+      - uses: moonrepo/setup-toolchain@261c62cb5b0f580c7be7c8cd0f023a2e96756095 # v0
         with:
           auto-install: false
 
@@ -37,9 +37,9 @@ jobs:
     name: Flutter monorepo
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: moonrepo/setup-toolchain@v0
+      - uses: moonrepo/setup-toolchain@261c62cb5b0f580c7be7c8cd0f023a2e96756095 # v0
         with:
           auto-install: false
 
@@ -77,9 +77,9 @@ jobs:
     continue-on-error: true
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: moonrepo/setup-toolchain@v0
+      - uses: moonrepo/setup-toolchain@261c62cb5b0f580c7be7c8cd0f023a2e96756095 # v0
         with:
           auto-install: false
 
@@ -94,10 +94,17 @@ jobs:
           rustup component add cargo rustc rust-std
           rustup target add wasm32-wasip1
 
-      - run: cargo build --workspace --target wasm32-wasip1
+      - run: cargo build --locked --workspace --target wasm32-wasip1
 
       - name: Install Moon 2.4.6
         run: proto install moon 2.4.6
 
       - name: Validate Moon 2.4.6
         run: proto run moon 2.4.6 -- run :ci
+
+  audit:
+    name: RustSec audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0

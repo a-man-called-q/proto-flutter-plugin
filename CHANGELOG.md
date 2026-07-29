@@ -1,5 +1,15 @@
 ## 0.4.0
 
+#### Security
+
+- Require HTTPS release mirrors, validate release archive paths, version and expire cached metadata, and warn when a custom mirror is used.
+- Pin CI and release actions, verify Binaryen before extraction, add RustSec audit, and attest released WASM artifacts.
+
+#### Fixes
+
+- Use `dart pub get` for Dart-only projects, preserve non-workspace dependency roots, and avoid following symlinks while discovering tests.
+- Migrated YAML parsing to `serde_norway` and moved shared Flutter/Pub data models into an internal non-WASM crate.
+
 #### Features
 
 - Added a native Moon Flutter toolchain with Proto-backed Flutter and Dart executables.
