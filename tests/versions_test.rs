@@ -96,6 +96,23 @@ environment:
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    async fn accepts_pubspec_without_name_and_unparseable_constraint() {
+        let sandbox = create_empty_proto_sandbox();
+        let plugin = sandbox.create_plugin("flutter-test").await;
+
+        assert_eq!(
+            plugin
+                .parse_version_file(ParseVersionFileInput {
+                    content: "environment:\n  flutter: invalid constraint\n".into(),
+                    file: "pubspec.yaml".into(),
+                    ..Default::default()
+                })
+                .await,
+            ParseVersionFileOutput::default()
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
     async fn parses_fvmrc() {
         let sandbox = create_empty_proto_sandbox();
         let plugin = sandbox.create_plugin("flutter-test").await;

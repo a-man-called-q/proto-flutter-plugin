@@ -1,5 +1,4 @@
 mod config;
-mod pubspec;
 
 #[cfg(feature = "wasm")]
 mod tier1;
@@ -7,8 +6,7 @@ mod tier1;
 mod tier2;
 
 pub use config::*;
-pub use flutter_tool::*;
-pub use pubspec::*;
+pub use flutter_models::*;
 
 #[cfg(feature = "wasm")]
 pub use tier1::*;

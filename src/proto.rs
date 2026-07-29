@@ -1,13 +1,30 @@
-use std::collections::HashMap;
+use std::{
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use extism_pdk::*;
 use proto_pdk::*;
 use schematic::SchemaBuilder;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-use crate::{FlutterDist, FlutterDistVersion, FlutterPluginConfig, Fvmrc, PubspecYaml};
+use crate::{FlutterDist, FlutterDistVersion, FlutterPluginConfig, Fvmrc, Pubspec};
 
 static NAME: &str = "Flutter";
+const DEFAULT_BASE_URL: &str = "https://storage.googleapis.com/flutter_infra_release/releases";
+const DIST_CACHE_TTL_SECS: u64 = 15 * 60;
+
+#[derive(Deserialize, Serialize)]
+struct CachedDist {
+    version: u8,
+    fetched_at: u64,
+    bytes: Vec<u8>,
+}
+
+thread_local! {
+    static PARSED_DIST: RefCell<Option<(String, FlutterDist)>> = const { RefCell::new(None) };
+}
 
 #[plugin_fn]
 pub fn register_tool(Json(_): Json<RegisterToolInput>) -> FnResult<Json<RegisterToolOutput>> {
@@ -27,7 +44,9 @@ pub fn register_tool(Json(_): Json<RegisterToolInput>) -> FnResult<Json<Register
 pub fn load_versions(Json(_): Json<LoadVersionsInput>) -> FnResult<Json<LoadVersionsOutput>> {
     let env = get_host_environment()?;
     ensure_supported_host(&env)?;
-    let response = fetch_dist(&env)?;
+    let config = get_tool_config::<FlutterPluginConfig>()?;
+    validate_base_url(&config.base_url)?;
+    let response = fetch_dist(&env, &config.base_url)?;
 
     Ok(Json(build_versions_output(&env, &response)?))
 }
@@ -47,10 +66,11 @@ pub fn download_prebuilt(
         ))));
     }
 
-    let base_url = get_tool_config::<FlutterPluginConfig>()?.base_url;
-    let response = fetch_dist(&env)?;
+    let config = get_tool_config::<FlutterPluginConfig>()?;
+    validate_base_url(&config.base_url)?;
+    let response = fetch_dist(&env, &config.base_url)?;
     let release = select_release(&env, &response, version_spec)?;
-    let download_url = build_download_url(&base_url, release);
+    let download_url = build_download_url(&config.base_url, release);
 
     Ok(Json(DownloadPrebuiltOutput {
         download_url,
@@ -82,7 +102,6 @@ pub fn locate_executables(
                 )),
             ),
         ]),
-        globals_lookup_dirs: vec!["$FLUTTER_ROOT/bin".into()],
         ..LocateExecutablesOutput::default()
     }))
 }
@@ -115,11 +134,11 @@ pub fn parse_version_file(
             version = Some(UnresolvedVersionSpec::parse(flutter_version)?);
         }
     } else if input.file.starts_with("pubspec") {
-        let pubspec: PubspecYaml = serde_yml::from_str(&input.content)?;
+        let pubspec: Pubspec = serde_norway::from_str(&input.content)?;
 
         if let Some(env) = pubspec.environment {
             if let Some(constraint) = env.flutter {
-                version = Some(UnresolvedVersionSpec::parse(constraint)?);
+                version = UnresolvedVersionSpec::parse(constraint).ok();
             }
         }
     }
@@ -184,6 +203,7 @@ fn build_versions_output(
     ensure_supported_host(env)?;
 
     let mut output = LoadVersionsOutput::default();
+    let mut versions = HashSet::new();
 
     for release in &response.releases {
         if !is_release_compatible(env, release) {
@@ -213,7 +233,7 @@ fn build_versions_output(
             output.aliases.insert("beta".into(), unresolved);
         }
 
-        if !output.versions.contains(&version_spec) {
+        if versions.insert(release.version.clone()) {
             output.versions.push(version_spec);
         }
     }
@@ -239,15 +259,14 @@ fn select_release<'a>(
         "beta"
     };
 
-    response
+    let release = response
         .releases
         .iter()
         .filter(|release| is_release_compatible(env, release))
         .filter(|release| {
             VersionSpec::parse(&release.version)
                 .ok()
-                .and_then(|spec| spec.as_version().cloned())
-                .is_some_and(|version| version == *requested)
+                .is_some_and(|spec| spec.as_version().is_some_and(|version| version == requested))
         })
         .min_by_key(|release| usize::from(release.channel != preferred_channel))
         .ok_or_else(|| {
@@ -255,7 +274,10 @@ fn select_release<'a>(
                 "Unable to install {NAME}@{requested} for {} ({}): no compatible stable or beta archive was found",
                 env.os, env.arch
             )))
-        })
+        })?;
+
+    validate_archive(&release.archive)?;
+    Ok(release)
 }
 
 fn build_download_url(base_url: &str, release: &FlutterDistVersion) -> String {
@@ -266,6 +288,41 @@ fn build_download_url(base_url: &str, release: &FlutterDistVersion) -> String {
     )
 }
 
+fn validate_base_url(base_url: &str) -> FnResult<()> {
+    if base_url.starts_with("https://") {
+        if base_url != DEFAULT_BASE_URL {
+            log_custom_mirror_warning(base_url);
+        }
+        Ok(())
+    } else {
+        Err(plugin_err!(PluginError::Message(format!(
+            "Flutter `base-url` must use HTTPS, received `{base_url}`"
+        ))))
+    }
+}
+
+fn log_custom_mirror_warning(base_url: &str) {
+    #[cfg(not(test))]
+    warn!("Flutter is using custom release mirror: {base_url}");
+
+    #[cfg(test)]
+    let _ = base_url;
+}
+
+fn validate_archive(archive: &str) -> FnResult<()> {
+    if archive.is_empty()
+        || archive.starts_with('/')
+        || archive.contains(['\\', '?', '#'])
+        || archive.contains("..")
+        || archive.contains("://")
+    {
+        return Err(plugin_err!(PluginError::Message(format!(
+            "Flutter release archive contains an unsafe path: `{archive}`"
+        ))));
+    }
+    Ok(())
+}
+
 fn get_os_as_str(env: &HostEnvironment) -> &'static str {
     match env.os {
         HostOS::MacOS => "macos",
@@ -274,21 +331,53 @@ fn get_os_as_str(env: &HostEnvironment) -> &'static str {
     }
 }
 
-fn fetch_dist(env: &HostEnvironment) -> AnyResult<FlutterDist> {
+fn fetch_dist(env: &HostEnvironment, base_url: &str) -> AnyResult<FlutterDist> {
     let suffix = get_os_as_str(env);
-    let base_url = get_tool_config::<FlutterPluginConfig>()?.base_url;
     let url = format!("{base_url}/releases_{suffix}.json");
-    let cache_key = format!("dist_{suffix}");
+    let cache_key = format!("dist_v1_{suffix}_{base_url}");
+    let memory_key = format!("{suffix}:{base_url}");
+
+    if let Some(dist) = PARSED_DIST.with(|cache| {
+        cache
+            .borrow()
+            .as_ref()
+            .and_then(|(key, dist)| (key == &memory_key).then(|| dist.clone()))
+    }) {
+        return Ok(dist);
+    }
 
     if let Ok(Some(cached)) = var::get::<Vec<u8>>(&cache_key) {
-        if let Ok(dist) = json::from_slice::<FlutterDist>(&cached) {
-            return Ok(dist);
+        if let Ok(cached) = json::from_slice::<CachedDist>(&cached) {
+            let now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            if cached.version == 1 && now.saturating_sub(cached.fetched_at) <= DIST_CACHE_TTL_SECS {
+                if let Ok(dist) = json::from_slice::<FlutterDist>(&cached.bytes) {
+                    PARSED_DIST
+                        .with(|cache| *cache.borrow_mut() = Some((memory_key, dist.clone())));
+                    return Ok(dist);
+                }
+            } else {
+                warn!("Ignoring expired Flutter release metadata cache");
+            }
+        } else {
+            warn!("Ignoring corrupt Flutter release metadata cache");
         }
     }
 
     let bytes = fetch_bytes(&url)?;
-    let _ = var::set(&cache_key, &bytes);
     let dist: FlutterDist = json::from_slice(&bytes)?;
+    let cached = CachedDist {
+        version: 1,
+        fetched_at: SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs(),
+        bytes,
+    };
+    let _ = var::set(&cache_key, &json::to_vec(&cached)?);
+    PARSED_DIST.with(|cache| *cache.borrow_mut() = Some((memory_key, dist.clone())));
 
     Ok(dist)
 }
@@ -380,5 +469,39 @@ mod tests {
         };
 
         assert!(ensure_supported_host(&windows_x86).is_err());
+    }
+
+    #[test]
+    fn accepts_only_https_base_urls() {
+        assert!(validate_base_url("https://example.test/releases").is_ok());
+        assert!(validate_base_url("http://example.test/releases").is_err());
+        assert!(validate_base_url("file:///tmp/releases").is_err());
+    }
+
+    #[test]
+    fn rejects_unsafe_archive_paths() {
+        for archive in [
+            "/stable/file.zip",
+            "stable/../file.zip",
+            "https://evil.test/file",
+            "stable\\file.zip",
+            "stable/file.zip?x=1",
+            "",
+        ] {
+            assert!(validate_archive(archive).is_err(), "{archive}");
+        }
+        assert!(validate_archive("stable/macos/flutter.zip").is_ok());
+    }
+
+    #[test]
+    fn accepts_pubspec_without_name_and_any_constraint() {
+        let pubspec: Pubspec = serde_norway::from_str("environment:\n  flutter: any\n").unwrap();
+
+        assert!(pubspec.name.is_none());
+        assert!(pubspec
+            .environment
+            .and_then(|environment| environment.flutter)
+            .and_then(|constraint| UnresolvedVersionSpec::parse(constraint).ok())
+            .is_some());
     }
 }

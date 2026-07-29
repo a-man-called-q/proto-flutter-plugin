@@ -9,7 +9,6 @@ publish = false
 crate-type = ["cdylib", "lib"]
 
 [dependencies]
-flutter_tool = { path = "../..", default-features = false }
 extism-pdk = "=1.4.1"
 moon_common = "=2.0.7"
 moon_config = "=2.1.0"
@@ -18,7 +17,8 @@ moon_pdk_api = "=2.0.4"
 moon_target = "=3.0.0"
 schematic = { version = "=0.19.7", default-features = false, features = ["config"] }
 serde = { version = "1.0.228", features = ["derive"] }
-serde_yml = "0.0.12"
+flutter_models = { path = "../flutter-models" }
+serde_norway = "0.9.42"
 
 [dev-dependencies]
 moon_pdk_test_utils = "=2.0.4"
@@ -28,4 +28,4 @@ tokio = { version = "1.52.0", features = ["macros", "rt-multi-thread"] }
 
 [features]
 default = ["wasm"]
-wasm = ["flutter_tool/wasm"]
+wasm = []
