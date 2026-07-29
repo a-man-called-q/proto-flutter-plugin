@@ -28,7 +28,7 @@ jobs:
 
       - name: Install Rust build components
         run: |
-          rustup component add cargo
+          rustup component add cargo rustc rust-std
           rustup target add wasm32-wasip1
 
       - run: moon ci :ci
@@ -51,7 +51,7 @@ jobs:
 
       - name: Install Rust build components
         run: |
-          rustup component add cargo
+          rustup component add cargo rustc rust-std
           rustup target add wasm32-wasip1
 
       - name: Build local plugin
@@ -91,7 +91,7 @@ jobs:
 
       - name: Install Rust build components
         run: |
-          rustup component add cargo
+          rustup component add cargo rustc rust-std
           rustup target add wasm32-wasip1
 
       - run: cargo build --workspace --target wasm32-wasip1
