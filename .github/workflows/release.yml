@@ -26,6 +26,11 @@ jobs:
       - name: Install Rust
         run: proto install rust
 
+      - name: Install Rust build components
+        run: |
+          rustup component add cargo
+          rustup target add wasm32-wasip1
+
       - name: Validate
         run: moon run :ci
 
