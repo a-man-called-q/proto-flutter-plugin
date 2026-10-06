@@ -1,6 +1,6 @@
 # Flutter plugin
 
-[![Release](https://github.com/KonstantinKai/proto-flutter-plugin/actions/workflows/release.yml/badge.svg)](https://github.com/KonstantinKai/proto-flutter-plugin/actions/workflows/release.yml)
+[![Release](https://github.com/a-man-called-q/proto-flutter-plugin/actions/workflows/release.yml/badge.svg)](https://github.com/a-man-called-q/proto-flutter-plugin/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 A community [WASM plugin](https://moonrepo.dev/docs/proto/wasm-plugin) for [proto](https://github.com/moonrepo/proto) that manages [Flutter](https://flutter.dev/) SDK versions.
@@ -10,7 +10,7 @@ Requires [proto](https://github.com/moonrepo/proto) >= 0.60.0 (validated with 0.
 ## Installation
 
 ```sh
-proto plugin add flutter "github://KonstantinKai/proto-flutter-plugin"
+proto plugin add flutter "github://a-man-called-q/proto-flutter-plugin"
 proto install flutter
 ```
 
@@ -18,7 +18,7 @@ Or add manually to `.prototools`:
 
 ```toml
 [plugins.tools]
-flutter = "github://KonstantinKai/proto-flutter-plugin"
+flutter = "github://a-man-called-q/proto-flutter-plugin"
 ```
 
 ## Usage
@@ -92,7 +92,7 @@ WASM API is still experimental.
 ```yaml
 # .moon/toolchains.yml
 flutter:
-  plugin: "github://KonstantinKai/proto-flutter-plugin/flutter_toolchain@v0.4.0"
+  plugin: "github://a-man-called-q/proto-flutter-plugin/flutter_toolchain@flutter_toolchain-v0.4.0"
   versionFromPrototools: true
   inferTasks: true
 ```
@@ -101,7 +101,7 @@ Initialize the same configuration through the CLI with:
 
 ```sh
 moon toolchain add flutter \
-  "github://KonstantinKai/proto-flutter-plugin/flutter_toolchain@v0.4.0"
+  "github://a-man-called-q/proto-flutter-plugin/flutter_toolchain@flutter_toolchain-v0.4.0"
 ```
 
 The native toolchain detects Moon projects containing `pubspec.yaml`, derives
@@ -122,7 +122,7 @@ Pin Flutter and register the plugin in the consumer repository:
 flutter = "3.44.8"
 
 [plugins.tools]
-flutter = "github://KonstantinKai/proto-flutter-plugin"
+flutter = "github://a-man-called-q/proto-flutter-plugin"
 ```
 
 Existing task-based integration remains supported without enabling the native
