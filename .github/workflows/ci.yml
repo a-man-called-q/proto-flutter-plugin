@@ -38,6 +38,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # Moon compares against the base branch on pull requests, which
+          # needs more than the default shallow checkout.
+          fetch-depth: 0
+          filter: blob:none
 
       - uses: moonrepo/setup-toolchain@261c62cb5b0f580c7be7c8cd0f023a2e96756095 # v0
         with:
@@ -95,12 +100,18 @@ jobs:
       checks: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      # The ignored advisories only affect host-side test dependencies
+      # (`wasmtime` through `extism`, and `rsa`), which are not linked into the
+      # released WASM artifacts. `wasmtime` is pinned by `extism` upstream and
+      # `rsa` has no fixed release. Drop an ID once its crate can be upgraded.
       - name: Audit Proto plugin lockfile
         uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          ignore: RUSTSEC-2023-0071,RUSTSEC-2026-0222,RUSTSEC-2026-0269,RUSTSEC-2026-0316,RUSTSEC-2026-0327
       - name: Audit Moon toolchain lockfile
         uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           working-directory: crates/flutter-toolchain
+          ignore: RUSTSEC-2023-0071,RUSTSEC-2026-0222,RUSTSEC-2026-0269,RUSTSEC-2026-0316,RUSTSEC-2026-0327
