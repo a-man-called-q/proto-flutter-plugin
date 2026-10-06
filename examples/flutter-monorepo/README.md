@@ -55,14 +55,14 @@ moon = "2.6.0"
 flutter = "3.44.8"
 
 [plugins.tools]
-flutter = "github://KonstantinKai/proto-flutter-plugin"
+flutter = "github://a-man-called-q/proto-flutter-plugin"
 ```
 
 Replace the local toolchain locator in `.moon/toolchains.yml`:
 
 ```yaml
 flutter:
-  plugin: "github://KonstantinKai/proto-flutter-plugin/flutter_toolchain@v0.4.0"
+  plugin: "github://a-man-called-q/proto-flutter-plugin/flutter_toolchain@flutter_toolchain-v0.4.0"
   versionFromPrototools: true
   inferTasks: true
 ```

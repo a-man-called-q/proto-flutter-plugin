@@ -77,3 +77,6 @@ jobs:
         with:
           artifacts: builds/*
           artifactErrorsFailBuild: true
+          # Unpinned `github://owner/repo` locators load the first WASM asset of
+          # the latest release, so only Proto plugin releases may be latest.
+          makeLatest: ${{ !startsWith(github.ref_name, 'flutter_toolchain-') }}

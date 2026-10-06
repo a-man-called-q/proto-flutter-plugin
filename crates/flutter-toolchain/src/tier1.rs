@@ -33,11 +33,11 @@ pub fn initialize_toolchain(
 ) -> FnResult<Json<InitializeToolchainOutput>> {
     Ok(Json(InitializeToolchainOutput {
         config_url: Some(
-            "https://github.com/KonstantinKai/proto-flutter-plugin#native-moon-toolchain"
+            "https://github.com/a-man-called-q/proto-flutter-plugin#moonrepo-integration"
                 .into(),
         ),
         docs_url: Some(
-            "https://github.com/KonstantinKai/proto-flutter-plugin/tree/main/examples/flutter-monorepo"
+            "https://github.com/a-man-called-q/proto-flutter-plugin/tree/main/examples/flutter-monorepo"
                 .into(),
         ),
         default_settings: [("inferTasks".into(), true.into())].into_iter().collect(),
