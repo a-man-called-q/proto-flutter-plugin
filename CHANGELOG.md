@@ -1,26 +1,19 @@
-## Unreleased
+## 0.4.2
 
 #### Compatibility
 
-- Validated the Proto WASM plugin and local Flutter example with proto 0.62.3.
-- Updated the Proto PDK and test harness to the releases used by the 0.62 series
-  (`proto_pdk` 0.35.5).
+- Migrated the Proto WASM plugin contract to `proto_pdk` 0.35.5 and the proto
+  0.60+ context, schema, version, and checksum APIs.
+- Raised the minimum supported Proto version to 0.60.0 and validated the plugin
+  and local Flutter example with proto 0.62.3.
 - Updated the native Moon toolchain to `moon_pdk` 2.3.0 and validated it with
   Moon 2.6.0. The toolchain now requires Moon >= 2.5.0, because the new PDK
-  emits the virtual path shape that Moon 2.4 cannot resolve.
+  emits the virtual path shape that Moon 2.4 cannot resolve. It is released
+  separately as `flutter_toolchain-v0.4.0`.
 
 #### Performance
 
 - Avoided cloning the full Flutter release metadata on in-memory cache hits.
-
-## 0.4.1
-
-#### Compatibility
-
-- Migrated the Proto WASM plugin contract to `proto_pdk` 0.35.3 and the proto
-  0.60/0.61 context, schema, version, and checksum APIs.
-- Raised the minimum supported Proto version to 0.60.0 and validated the plugin
-  with proto 0.61.0.
 
 #### Improvements
 
@@ -33,6 +26,12 @@
   `proto plugin add --to global` (`~/.proto/.prototools`), because proto only
   loads the `--to user` config (`~/.prototools`) from working directories
   inside the home directory.
+
+## 0.4.1
+
+- Rebuilt the 0.4.0 sources with CI and release workflow fixes only. This
+  release predates the proto 0.60 migration and fails on current proto
+  releases (verified with 0.62.3); use 0.4.2 instead.
 
 ## 0.4.0
 

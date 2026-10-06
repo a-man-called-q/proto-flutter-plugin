@@ -1808,7 +1808,7 @@ dependencies = [
 
 [[package]]
 name = "flutter_tool"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "extism-pdk",
  "flutter_models",

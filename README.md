@@ -71,7 +71,7 @@ base-url = "https://storage.googleapis.com/flutter_infra_release/releases"
 
 ## Notes
 
-- Version 0.4.1 requires proto >= 0.60.0 because the WASM plugin context and
+- Version 0.4.2 requires proto >= 0.60.0 because the WASM plugin context and
   configuration APIs changed in proto 0.60. Proto 0.62.3 is covered by CI.
 - Supports version aliases: `stable`, `beta`, `latest`
 - Does not support channel switching via `flutter channel` — use `proto install flutter beta` instead
