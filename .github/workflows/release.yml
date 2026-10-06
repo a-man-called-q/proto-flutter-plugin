@@ -32,6 +32,8 @@ jobs:
           moon query projects
           moon query tasks
           moon run :analyze :test
+      - name: Install wabt
+        run: sudo apt-get update && sudo apt-get install -y wabt
       - name: Install Binaryen securely
         run: |
           archive=/tmp/binaryen-version_121-x86_64-linux.tar.gz
