@@ -1,13 +1,14 @@
 [package]
 name = "flutter_tool"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2021"
 license = "MIT"
 publish = false
 
 [workspace]
 resolver = "2"
-members = ["crates/flutter-models", "crates/flutter-toolchain"]
+members = ["crates/flutter-models"]
+exclude = ["crates/flutter-toolchain"]
 
 [lib]
 crate-type = ["cdylib", "lib"]
@@ -20,10 +21,10 @@ opt-level = "s"
 panic = "abort"
 
 [dependencies]
-extism-pdk = "1.3.0"
-proto_pdk = "0.28.0"
-schematic = { version = "0.18.0", default-features = false, features = ["schema"] }
-serde = "1.0.217"
+extism-pdk = "=1.4.1"
+proto_pdk = "=0.35.5"
+schematic = { version = "=0.20.6", default-features = false, features = ["schema"] }
+serde = "1.0.229"
 serde_norway = "0.9.42"
 flutter_models = { path = "crates/flutter-models" }
 
@@ -33,6 +34,6 @@ wasm = []
 live-tests = []
 
 [dev-dependencies]
-proto_pdk_test_utils = "=0.44.2"
-starbase_sandbox = "0.11.0"
+proto_pdk_test_utils = "=0.50.2"
+starbase_sandbox = "0.12.0"
 tokio = "1.52.0"

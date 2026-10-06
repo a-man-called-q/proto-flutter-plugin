@@ -25,7 +25,8 @@ jobs:
         run: moon run :ci
       - name: Validate native Flutter example
         run: |
-          cargo build --locked --workspace --target wasm32-wasip1
+          cargo build --locked --manifest-path Cargo.toml --workspace --target wasm32-wasip1
+          cargo build --locked --manifest-path crates/flutter-toolchain/Cargo.toml --target-dir target --target wasm32-wasip1
           cd examples/flutter-monorepo
           proto install flutter
           moon query projects
@@ -40,8 +41,13 @@ jobs:
           echo "/tmp/binaryen-version_121/bin" >> "$GITHUB_PATH"
       - name: Build and optimize WASM
         run: |
-          if [[ "$GITHUB_REF_NAME" == flutter_toolchain-v* ]]; then artifact=flutter_toolchain; else artifact=flutter_tool; fi
-          cargo build --locked --package "$artifact" --target wasm32-wasip1 --release
+          if [[ "$GITHUB_REF_NAME" == flutter_toolchain-v* ]]; then
+            artifact=flutter_toolchain
+            cargo build --locked --manifest-path crates/flutter-toolchain/Cargo.toml --target-dir target --package "$artifact" --target wasm32-wasip1 --release
+          else
+            artifact=flutter_tool
+            cargo build --locked --manifest-path Cargo.toml --package "$artifact" --target wasm32-wasip1 --release
+          fi
           mkdir -p builds
           wasm-opt -Os --enable-bulk-memory "target/wasm32-wasip1/release/$artifact.wasm" --output "builds/$artifact.wasm"
           wasm-strip "builds/$artifact.wasm"

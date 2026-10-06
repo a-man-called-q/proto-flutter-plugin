@@ -50,8 +50,8 @@ The checked-in `.prototools` uses the local debug WASM build so CI tests the
 current source. Replace its plugin locator when copying this example:
 
 ```toml
-proto = "0.59.0"
-moon = "2.4.5"
+proto = "0.62.3"
+moon = "2.6.0"
 flutter = "3.44.8"
 
 [plugins.tools]

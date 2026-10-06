@@ -8,10 +8,14 @@ mod flutter_tool {
         let sandbox = create_empty_proto_sandbox();
         let plugin = sandbox.create_plugin("flutter-test").await;
 
-        let metadata = plugin.register_tool(RegisterToolInput::default()).await;
+        let metadata = plugin
+            .register_tool(RegisterToolInput {
+                id: Id::new("flutter-test").unwrap(),
+            })
+            .await;
 
         assert_eq!(metadata.name, "Flutter");
-        assert_eq!(metadata.minimum_proto_version, Some(Version::new(0, 47, 0)));
+        assert_eq!(metadata.minimum_proto_version, Some(Version::new(0, 60, 0)));
         assert_eq!(metadata.self_upgrade_commands, vec!["upgrade", "downgrade"]);
         assert_eq!(
             metadata.default_install_strategy,

@@ -66,7 +66,7 @@ pub fn extend_project_graph(
             continue;
         }
 
-        let manifest = load_manifest(&mut manifests, manifest_path.any_path())?;
+        let manifest = load_manifest(&mut manifests, &manifest_path)?;
         let package_name = manifest
             .name
             .clone()
@@ -123,7 +123,7 @@ pub fn extend_project_graph(
             .extended_projects
             .insert(project.id.clone(), extended);
 
-        output.input_files.push(project.manifest_path.to_path_buf());
+        output.input_files.push(project.manifest_path.clone());
     }
 
     Ok(Json(output))
@@ -186,7 +186,7 @@ fn infer_tasks(project: &ProjectInfo) -> AnyResult<BTreeMap<Id, PartialTaskConfi
 
     let test_dir = project.root.join("test");
 
-    if contains_dart_file(test_dir.any_path()) {
+    if contains_dart_file(&test_dir) {
         tasks.insert(
             Id::raw("test"),
             create_task(
@@ -326,14 +326,14 @@ fn find_workspace_root(
     let mut current = Some(project_root.clone());
 
     while let Some(dir) = current {
-        if !dir.starts_with(workspace_root.any_path()) {
+        if !dir.starts_with(workspace_root.as_path()) {
             break;
         }
 
         let manifest_path = dir.join("pubspec.yaml");
 
         if manifest_path.exists() {
-            let manifest = load_manifest(manifests, manifest_path.any_path())?;
+            let manifest = load_manifest(manifests, &manifest_path)?;
 
             if manifest.is_workspace_root() {
                 let is_member = manifest
@@ -369,20 +369,20 @@ pub fn locate_dependencies_root(
     let mut current = Some(input.starting_dir.clone());
 
     while let Some(dir) = current {
-        if !dir.starts_with(input.context.workspace_root.any_path()) {
+        if !dir.starts_with(input.context.workspace_root.as_path()) {
             break;
         }
 
         let manifest_path = dir.join("pubspec.yaml");
 
         if manifest_path.exists() {
-            let manifest = Pubspec::load(manifest_path.any_path()).map_err(Error::msg)?;
+            let manifest = Pubspec::load(&manifest_path).map_err(Error::msg)?;
 
             if manifest.is_workspace_root() {
-                validate_workspace_members(dir.any_path(), &manifest)?;
+                validate_workspace_members(&dir, &manifest)?;
 
                 return Ok(Json(LocateDependenciesRootOutput {
-                    root: Some(dir.to_path_buf()),
+                    root: Some(dir),
                     members: Some(manifest.workspace),
                 }));
             }
@@ -395,7 +395,7 @@ pub fn locate_dependencies_root(
 
     if manifest_path.exists() {
         return Ok(Json(LocateDependenciesRootOutput {
-            root: Some(input.starting_dir.to_path_buf()),
+            root: Some(input.starting_dir),
             members: None,
         }));
     }
@@ -431,7 +431,7 @@ fn validate_workspace_members(root: &Path, manifest: &Pubspec) -> AnyResult<()> 
 pub fn install_dependencies(
     Json(input): Json<InstallDependenciesInput>,
 ) -> FnResult<Json<InstallDependenciesOutput>> {
-    let manifest = Pubspec::load(input.root.any_path()).map_err(Error::msg)?;
+    let manifest = Pubspec::load(input.root.join("pubspec.yaml").as_path()).map_err(Error::msg)?;
     let executable = if manifest.is_flutter() {
         "flutter"
     } else {
@@ -452,7 +452,7 @@ pub fn install_dependencies(
 pub fn parse_manifest(
     Json(input): Json<ParseManifestInput>,
 ) -> FnResult<Json<ParseManifestOutput>> {
-    let manifest = Pubspec::load(input.path.any_path()).map_err(Error::msg)?;
+    let manifest = Pubspec::load(&input.path).map_err(Error::msg)?;
     let mut output = ParseManifestOutput {
         publishable: manifest.publish_to.as_deref() != Some("none"),
         version: manifest
@@ -507,7 +507,7 @@ fn parse_dependencies(
 
 #[plugin_fn]
 pub fn parse_lock(Json(input): Json<ParseLockInput>) -> FnResult<Json<ParseLockOutput>> {
-    let source = std::fs::read_to_string(input.path.any_path())
+    let source = std::fs::read_to_string(input.path.as_path())
         .map_err(|error| Error::msg(format!("Unable to read {}: {error}", input.path)))?;
     let lock: PubLock = serde_norway::from_str(&source)
         .map_err(|error| Error::msg(format!("Unable to parse {}: {error}", input.path)))?;
@@ -546,8 +546,8 @@ mod tests {
 
         let project = ProjectInfo {
             id: Id::raw("app"),
-            root: VirtualPath::Real(temp.clone()),
-            manifest_path: VirtualPath::Real(temp.join("pubspec.yaml")),
+            root: VirtualPath::new(&temp),
+            manifest_path: VirtualPath::new(temp.join("pubspec.yaml")),
             manifest: serde_norway::from_str(
                 "name: app\ndependencies:\n  flutter:\n    sdk: flutter\n",
             )

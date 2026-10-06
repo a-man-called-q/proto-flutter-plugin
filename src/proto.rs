@@ -1,6 +1,7 @@
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
+    rc::Rc,
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -14,6 +15,10 @@ use crate::{FlutterDist, FlutterDistVersion, FlutterPluginConfig, Fvmrc, Pubspec
 static NAME: &str = "Flutter";
 const DEFAULT_BASE_URL: &str = "https://storage.googleapis.com/flutter_infra_release/releases";
 const DIST_CACHE_TTL_SECS: u64 = 15 * 60;
+// Proto's WASM variable store is intentionally small. Flutter's release
+// metadata can exceed that limit, so only cache compact mirrors there and keep
+// larger responses in the in-memory cache for the lifetime of the plugin.
+const MAX_VAR_CACHE_BYTES: usize = 128 * 1024;
 
 #[derive(Deserialize, Serialize)]
 struct CachedDist {
@@ -23,17 +28,16 @@ struct CachedDist {
 }
 
 thread_local! {
-    static PARSED_DIST: RefCell<Option<(String, FlutterDist)>> = const { RefCell::new(None) };
+    static PARSED_DIST: RefCell<Option<(String, Rc<FlutterDist>)>> = const { RefCell::new(None) };
 }
 
 #[plugin_fn]
 pub fn register_tool(Json(_): Json<RegisterToolInput>) -> FnResult<Json<RegisterToolOutput>> {
     Ok(Json(RegisterToolOutput {
         name: NAME.into(),
-        minimum_proto_version: Some(Version::new(0, 47, 0)),
+        minimum_proto_version: Some(Version::new(0, 60, 0)),
         type_of: PluginType::CommandLine,
         default_install_strategy: InstallStrategy::DownloadPrebuilt,
-        config_schema: Some(SchemaBuilder::build_root::<FlutterPluginConfig>()),
         self_upgrade_commands: vec!["upgrade".into(), "downgrade".into()],
         plugin_version: Version::parse(env!("CARGO_PKG_VERSION")).ok(),
         ..RegisterToolOutput::default()
@@ -41,14 +45,21 @@ pub fn register_tool(Json(_): Json<RegisterToolInput>) -> FnResult<Json<Register
 }
 
 #[plugin_fn]
+pub fn define_tool_config(_: ()) -> FnResult<Json<DefineToolConfigOutput>> {
+    Ok(Json(DefineToolConfigOutput {
+        schema: SchemaBuilder::build_root::<FlutterPluginConfig>(),
+    }))
+}
+
+#[plugin_fn]
 pub fn load_versions(Json(_): Json<LoadVersionsInput>) -> FnResult<Json<LoadVersionsOutput>> {
     let env = get_host_environment()?;
-    ensure_supported_host(&env)?;
+    ensure_supported_host(env)?;
     let config = get_tool_config::<FlutterPluginConfig>()?;
     validate_base_url(&config.base_url)?;
-    let response = fetch_dist(&env, &config.base_url)?;
+    let response = fetch_dist(env, &config.base_url)?;
 
-    Ok(Json(build_versions_output(&env, &response)?))
+    Ok(Json(build_versions_output(env, &response)?))
 }
 
 #[plugin_fn]
@@ -58,7 +69,7 @@ pub fn download_prebuilt(
     let env = get_host_environment()?;
     let version_spec = input.context.version.as_ref();
 
-    ensure_supported_host(&env)?;
+    ensure_supported_host(env)?;
 
     if version_spec.is_canary() {
         return Err(plugin_err!(PluginError::Message(format!(
@@ -68,13 +79,13 @@ pub fn download_prebuilt(
 
     let config = get_tool_config::<FlutterPluginConfig>()?;
     validate_base_url(&config.base_url)?;
-    let response = fetch_dist(&env, &config.base_url)?;
-    let release = select_release(&env, &response, version_spec)?;
+    let response = fetch_dist(env, &config.base_url)?;
+    let release = select_release(env, &response, version_spec)?;
     let download_url = build_download_url(&config.base_url, release);
 
     Ok(Json(DownloadPrebuiltOutput {
         download_url,
-        checksum: Some(release.sha256.clone()),
+        checksum: Some(Checksum::sha256(release.sha256.clone())),
         ..DownloadPrebuiltOutput::default()
     }))
 }
@@ -107,7 +118,9 @@ pub fn locate_executables(
 }
 
 #[plugin_fn]
-pub fn detect_version_files(_: ()) -> FnResult<Json<DetectVersionOutput>> {
+pub fn detect_version_files(
+    Json(_): Json<DetectVersionInput>,
+) -> FnResult<Json<DetectVersionOutput>> {
     Ok(Json(DetectVersionOutput {
         files: vec![".fvmrc".into(), "pubspec.yml".into(), "pubspec.yaml".into()],
         ignore: vec![],
@@ -123,7 +136,7 @@ pub fn pre_run(Json(input): Json<RunHook>) -> FnResult<Json<RunHookResult>> {
 
 #[plugin_fn]
 pub fn parse_version_file(
-    Json(input): Json<CompatibleParseVersionFileInput>,
+    Json(input): Json<ParseVersionFileInput>,
 ) -> FnResult<Json<ParseVersionFileOutput>> {
     let mut version = None;
 
@@ -144,15 +157,6 @@ pub fn parse_version_file(
     }
 
     Ok(Json(ParseVersionFileOutput { version }))
-}
-
-// Proto 0.47 used `ToolContext` here, while newer Proto releases use an
-// unresolved context. The plugin only needs the file name and contents, so a
-// narrow input keeps this hook compatible with both host shapes.
-#[derive(Deserialize)]
-pub struct CompatibleParseVersionFileInput {
-    pub content: String,
-    pub file: String,
 }
 
 fn validate_run_args(args: &[String]) -> FnResult<()> {
@@ -233,7 +237,7 @@ fn build_versions_output(
             output.aliases.insert("beta".into(), unresolved);
         }
 
-        if versions.insert(release.version.clone()) {
+        if versions.insert(release.version.as_str()) {
             output.versions.push(version_spec);
         }
     }
@@ -253,7 +257,7 @@ fn select_release<'a>(
             "Unable to resolve {NAME} version `{version_spec}` to an exact release"
         )))
     })?;
-    let preferred_channel = if requested.pre.is_empty() {
+    let preferred_channel = if requested.prerelease.is_none() {
         "stable"
     } else {
         "beta"
@@ -331,7 +335,7 @@ fn get_os_as_str(env: &HostEnvironment) -> &'static str {
     }
 }
 
-fn fetch_dist(env: &HostEnvironment, base_url: &str) -> AnyResult<FlutterDist> {
+fn fetch_dist(env: &HostEnvironment, base_url: &str) -> AnyResult<Rc<FlutterDist>> {
     let suffix = get_os_as_str(env);
     let url = format!("{base_url}/releases_{suffix}.json");
     let cache_key = format!("dist_v1_{suffix}_{base_url}");
@@ -341,7 +345,7 @@ fn fetch_dist(env: &HostEnvironment, base_url: &str) -> AnyResult<FlutterDist> {
         cache
             .borrow()
             .as_ref()
-            .and_then(|(key, dist)| (key == &memory_key).then(|| dist.clone()))
+            .and_then(|(key, dist)| (key == &memory_key).then(|| Rc::clone(dist)))
     }) {
         return Ok(dist);
     }
@@ -354,8 +358,9 @@ fn fetch_dist(env: &HostEnvironment, base_url: &str) -> AnyResult<FlutterDist> {
                 .as_secs();
             if cached.version == 1 && now.saturating_sub(cached.fetched_at) <= DIST_CACHE_TTL_SECS {
                 if let Ok(dist) = json::from_slice::<FlutterDist>(&cached.bytes) {
+                    let dist = Rc::new(dist);
                     PARSED_DIST
-                        .with(|cache| *cache.borrow_mut() = Some((memory_key, dist.clone())));
+                        .with(|cache| *cache.borrow_mut() = Some((memory_key, Rc::clone(&dist))));
                     return Ok(dist);
                 }
             } else {
@@ -367,7 +372,7 @@ fn fetch_dist(env: &HostEnvironment, base_url: &str) -> AnyResult<FlutterDist> {
     }
 
     let bytes = fetch_bytes(&url)?;
-    let dist: FlutterDist = json::from_slice(&bytes)?;
+    let dist = Rc::new(json::from_slice::<FlutterDist>(&bytes)?);
     let cached = CachedDist {
         version: 1,
         fetched_at: SystemTime::now()
@@ -376,8 +381,11 @@ fn fetch_dist(env: &HostEnvironment, base_url: &str) -> AnyResult<FlutterDist> {
             .as_secs(),
         bytes,
     };
-    let _ = var::set(&cache_key, &json::to_vec(&cached)?);
-    PARSED_DIST.with(|cache| *cache.borrow_mut() = Some((memory_key, dist.clone())));
+    let encoded_cache = json::to_vec(&cached)?;
+    if encoded_cache.len() <= MAX_VAR_CACHE_BYTES {
+        let _ = var::set(&cache_key, &encoded_cache);
+    }
+    PARSED_DIST.with(|cache| *cache.borrow_mut() = Some((memory_key, Rc::clone(&dist))));
 
     Ok(dist)
 }

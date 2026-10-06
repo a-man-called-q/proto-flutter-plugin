@@ -33,6 +33,8 @@ integration for existing users.
   moon toolchain add flutter <plugin-locator>
   ```
 
-Moon `2.4.5` and `moon_pdk` `2.0.4` are the compatibility baseline. The Moon
-PDK remains experimental, so its dependencies are pinned exactly and forward
-compatibility is checked separately.
+Moon `2.6.0` and `moon_pdk` `2.3.0` are the compatibility baseline, and Moon
+`2.5.0` is the minimum supported host: `moon_pdk` `2.3.0` serializes virtual
+paths in the shape introduced by Moon 2.5, which Moon 2.4 resolves as real
+paths. The Moon PDK remains experimental, so its dependencies are pinned
+exactly and the minimum host is checked separately in CI.

@@ -57,6 +57,12 @@ jobs:
       - name: Build local plugin
         run: moon run :build
 
+      - name: Verify Proto 0.62 compatibility
+        working-directory: examples/flutter-monorepo
+        run: |
+          proto --version
+          proto versions flutter --aliases
+
       - name: Install Flutter
         working-directory: examples/flutter-monorepo
         run: proto install flutter
@@ -72,39 +78,29 @@ jobs:
         working-directory: examples/flutter-monorepo
         run: moon run :analyze :test
 
-  moon-forward-compat:
-    name: Moon 2.4.6 compatibility
-    continue-on-error: true
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-
-      - uses: moonrepo/setup-toolchain@261c62cb5b0f580c7be7c8cd0f023a2e96756095 # v0
-        with:
-          auto-install: false
-
-      - name: Install Moon
-        run: proto install moon
-
-      - name: Install Rust
-        run: proto install rust
-
-      - name: Install Rust build components
+      - name: Analyze and test on the minimum supported Moon (2.5.0)
+        working-directory: examples/flutter-monorepo
         run: |
-          rustup component add cargo rustc rust-std
-          rustup target add wasm32-wasip1
-
-      - run: cargo build --locked --workspace --target wasm32-wasip1
-
-      - name: Install Moon 2.4.6
-        run: proto install moon 2.4.6
-
-      - name: Validate Moon 2.4.6
-        run: proto run moon 2.4.6 -- run :ci
+          proto install moon 2.5.0
+          rm -rf .moon/cache
+          proto run moon 2.5.0 -- --version
+          proto run moon 2.5.0 -- query projects
+          proto run moon 2.5.0 -- run :analyze :test
 
   audit:
     name: RustSec audit
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
+      - name: Audit Proto plugin lockfile
+        uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Audit Moon toolchain lockfile
+        uses: rustsec/audit-check@69366f33c96575abad1ee0dba8212993eecbe998 # v2.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          working-directory: crates/flutter-toolchain

@@ -5,7 +5,7 @@
 
 A community [WASM plugin](https://moonrepo.dev/docs/proto/wasm-plugin) for [proto](https://github.com/moonrepo/proto) that manages [Flutter](https://flutter.dev/) SDK versions.
 
-Requires [proto](https://github.com/moonrepo/proto) >= 0.47.0
+Requires [proto](https://github.com/moonrepo/proto) >= 0.60.0 (validated with 0.62.3)
 
 ## Installation
 
@@ -71,6 +71,8 @@ base-url = "https://storage.googleapis.com/flutter_infra_release/releases"
 
 ## Notes
 
+- Version 0.4.1 requires proto >= 0.60.0 because the WASM plugin context and
+  configuration APIs changed in proto 0.60. Proto 0.62.3 is covered by CI.
 - Supports version aliases: `stable`, `beta`, `latest`
 - Does not support channel switching via `flutter channel` — use `proto install flutter beta` instead
 - Only includes compatible stable and beta channel versions with non-zero MAJOR part
@@ -83,9 +85,9 @@ versioned and immutable.
 ## Moonrepo integration
 
 v0.4.0 provides an opt-in native Moon toolchain. Keep Flutter pinned in
-`.prototools`, then register the separate Moon WASM artifact. The compatibility
-baseline is Moon `2.4.5`; `moon_pdk` is pinned because its WASM API is still
-experimental.
+`.prototools`, then register the separate Moon WASM artifact. It requires Moon
+>= `2.5.0` and is validated with Moon `2.6.0`; `moon_pdk` is pinned because its
+WASM API is still experimental.
 
 ```yaml
 # .moon/toolchains.yml
@@ -176,6 +178,25 @@ moon run :build
 proto --log trace versions flutter --aliases
 proto run flutter 3.44.8 -- --version
 ```
+
+To register this local debug plugin for all projects on the machine, run the
+following from the repository root. The absolute locator is intentional; update
+it if the repository is moved:
+
+```sh
+proto plugin add flutter "file://$(pwd)/target/wasm32-wasip1/debug/flutter_tool.wasm" --to global
+proto install flutter 3.44.8 --pin global
+proto plugin info flutter
+proto versions flutter --aliases
+proto run flutter 3.44.8 -- --version
+proto run --exe dart flutter 3.44.8 -- --version
+```
+
+`--to global` writes to `~/.proto/.prototools`, which proto loads from any
+working directory. The `--to user` alternative writes to `~/.prototools`
+instead, but proto only reads that config while the working directory is inside
+the home directory, so projects on other volumes (for example `/Volumes/...`)
+never see plugins registered there.
 
 Live tests download upstream metadata and Flutter archives, and are intentionally
 excluded from the default CI suite:

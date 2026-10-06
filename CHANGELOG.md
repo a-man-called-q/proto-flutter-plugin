@@ -1,3 +1,39 @@
+## Unreleased
+
+#### Compatibility
+
+- Validated the Proto WASM plugin and local Flutter example with proto 0.62.3.
+- Updated the Proto PDK and test harness to the releases used by the 0.62 series
+  (`proto_pdk` 0.35.5).
+- Updated the native Moon toolchain to `moon_pdk` 2.3.0 and validated it with
+  Moon 2.6.0. The toolchain now requires Moon >= 2.5.0, because the new PDK
+  emits the virtual path shape that Moon 2.4 cannot resolve.
+
+#### Performance
+
+- Avoided cloning the full Flutter release metadata on in-memory cache hits.
+
+## 0.4.1
+
+#### Compatibility
+
+- Migrated the Proto WASM plugin contract to `proto_pdk` 0.35.3 and the proto
+  0.60/0.61 context, schema, version, and checksum APIs.
+- Raised the minimum supported Proto version to 0.60.0 and validated the plugin
+  with proto 0.61.0.
+
+#### Improvements
+
+- Isolated the Proto and Moon toolchain Cargo workspaces and lockfiles while
+  retaining both WASM artifacts in the root `target/` directory.
+- Added separate Moon tasks and CI/release validation for each workspace.
+- Avoided overflowing Proto's WASM variable store when caching large Flutter
+  release metadata responses.
+- Documented that machine-wide debug registration must use
+  `proto plugin add --to global` (`~/.proto/.prototools`), because proto only
+  loads the `--to user` config (`~/.prototools`) from working directories
+  inside the home directory.
+
 ## 0.4.0
 
 #### Security

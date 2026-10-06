@@ -96,6 +96,20 @@ environment:
     }
 
     #[tokio::test(flavor = "multi_thread")]
+    async fn detects_supported_version_files() {
+        let sandbox = create_empty_proto_sandbox();
+        let plugin = sandbox.create_plugin("flutter-test").await;
+
+        assert_eq!(
+            plugin
+                .detect_version_files(DetectVersionInput::default())
+                .await
+                .files,
+            vec![".fvmrc", "pubspec.yml", "pubspec.yaml"]
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
     async fn accepts_pubspec_without_name_and_unparseable_constraint() {
         let sandbox = create_empty_proto_sandbox();
         let plugin = sandbox.create_plugin("flutter-test").await;
